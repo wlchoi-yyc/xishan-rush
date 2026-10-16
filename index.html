@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極速西山：《始得西山宴遊記》3D射擊賽車</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        #game-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* UI 介面層 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .header {
+            background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+            padding: 15px 10px;
+            text-align: center;
+            color: white;
+        }
+        #score-board {
+            font-size: 1.1rem;
+            color: #00ffcc;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        #question-box {
+            background: rgba(10, 25, 40, 0.85);
+            border: 2px solid #00ffcc;
+            border-radius: 12px;
+            padding: 12px;
+            max-width: 750px;
+            margin: 0 auto;
+            font-size: 1.35rem;
+            line-height: 1.4;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+        }
+        .highlight {
+            color: #ffcc00;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        .footer-hint {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 15px;
+            font-size: 0.9rem;
+        }
+        /* 開始與結算畫面遮罩 */
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 16, 0.92);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+            overflow-y: auto;
+        }
+        .btn {
+            background: #00ffcc;
+            color: #050510;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.6);
+            pointer-events: auto;
+            transition: transform 0.1s;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        #wrong-list {
+            text-align: left;
+            max-width: 600px;
+            max-height: 40vh;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 1rem;
+            line-height: 1.6;
+            pointer-events: auto;
+        }
+        /* 手機直向時的字體微調 */
+        @media (orientation: portrait) {
+            #question-box {
+                font-size: 1.1rem;
+                padding: 10px;
+                width: 92%;
+            }
+        }
+    </style>
+    <!-- 引入 Three.js 3D 引擎 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <!-- 遊戲中 UI -->
+    <div id="ui-layer">
+        <div class="header">
+            <div id="score-board">進度: <span id="progress">1/18</span> | 積分: <span id="score">0</span></div>
+            <div id="question-box">準備出發...</div>
+        </div>
+        <div class="footer-hint">點擊螢幕【左 / 右】半邊，或用鍵盤 ◀ ▶ 移動戰車射擊</div>
+    </div>
+
+    <!-- 開始與結算畫面 -->
+    <div id="overlay">
+        <h1 style="color:#00ffcc; margin-bottom:5px;">極速西山</h1>
+        <h3 style="margin-top:0; color:#ccc;">《始得西山宴遊記》3D背誦戰車</h3>
+        <p id="end-desc" style="max-width:500px; line-height:1.6; color:#aaa;">
+            駕駛戰車發射雷射，擊破正確的原文詞句！
+            支援手機直向、橫向及電腦遊玩。
+        </p>
+        <div id="wrong-list" style="display:none;"></div>
+        <button class="btn" onclick="startGame()">開始極速背誦</button>
+    </div>
+
+    <!-- 3D 畫布 -->
+    <canvas id="game-canvas"></canvas>
+
+<script>
+    // --- 1. 《始得西山宴遊記》全篇題庫 (共18題) ---
+    const questions = [
+        { q: "自余為僇人，居是州，恒惴慄。其隙也，<span class='highlight'>＿＿＿＿＿</span>，漫漫而遊。", options: ["則施施而行", "則急急而行", "則緩緩而走"], ans: 0 },
+        { q: "日與其徒上高山，<span class='highlight'>＿＿＿</span>，窮迴溪，幽泉怪石，無遠不到。", options: ["入深林", "入幽谷", "入寒山"], ans: 0 },
+        { q: "到則<span class='highlight'>＿＿＿＿</span>，傾壺而醉。醉則更相枕以臥，臥而夢。", options: ["披草而坐", "席地而坐", "依石而坐"], ans: 0 },
+        { q: "意有所極，夢亦同趣。<span class='highlight'>＿＿＿</span>，起而歸。", options: ["覺而起", "醒而起", "驚而起"], ans: 0 },
+        { q: "以為凡是州之山水有異態者，皆我有也，而未始知西山之<span class='highlight'>＿＿</span>。", options: ["怪特", "奇特", "獨特"], ans: 0 },
+        { q: "今年九月二十八日，因坐法華西亭，望西山，<span class='highlight'>＿＿＿＿</span>。", options: ["始指異之", "始驚異之", "始嘆異之"], ans: 0 },
+        { q: "遂命僕人過湘江，緣染溪，<span class='highlight'>＿＿＿</span>，焚茅茷，窮山之高而止。", options: ["斫榛莽", "伐竹木", "闢荊棘"], ans: 0 },
+        { q: "攀援而登，<span class='highlight'>＿＿＿＿</span>，則凡數州之土壤，皆在衽席之下。", options: ["箕踞而遨", "盤膝而遨", "憑欄而望"], ans: 0 },
+        { q: "其高下之勢，岈然洼然，若垤若穴，<span class='highlight'>＿＿＿＿</span>，攢蹙累積，莫得遯隱。", options: ["尺寸千里", "咫尺千里", "毫釐千里"], ans: 0 },
+        { q: "攢蹙累積，<span class='highlight'>＿＿＿＿</span>。縈青繚白，外與天際，四望如一。", options: ["莫得遯隱", "莫能遯隱", "無所遯形"], ans: 0 },
+        { q: "縈青繚白，<span class='highlight'>＿＿＿＿</span>，四望如一。然後知是山之特立，不與培塿為類。", options: ["外與天際", "上與天齊", "遠接天際"], ans: 0 },
+        { q: "然後知是山之特立，不與<span class='highlight'>＿＿</span>為類。", options: ["培塿", "丘陵", "凡山"], ans: 0 },
+        { q: "悠悠乎與<span class='highlight'>＿＿</span>俱，而莫得其涯。", options: ["顥氣", "浩氣", "靈氣"], ans: 0 },
+        { q: "洋洋乎與造物者遊，而<span class='highlight'>＿＿＿＿＿</span>。", options: ["不知其所窮", "不知其所終", "不知其所蹤"], ans: 0 },
+        { q: "引觴滿酌，<span class='highlight'>＿＿＿＿</span>，不知日之入。", options: ["頹然就醉", "酣然入醉", "欣然就醉"], ans: 0 },
+        { q: "蒼然暮色，自遠而至，至無所見，而<span class='highlight'>＿＿＿＿</span>。", options: ["猶不欲歸", "猶不思歸", "猶不肯歸"], ans: 0 },
+        { q: "<span class='highlight'>＿＿＿＿</span>，與萬物冥合。然後知吾嚮之未始遊，遊於是乎始。", options: ["心凝形釋", "心曠神怡", "神凝形釋"], ans: 0 },
+        { q: "故為之文以志。是歲，<span class='highlight'>＿＿＿＿</span>也。", options: ["元和四年", "元和五年", "永貞元年"], ans: 0 }
+    ];
+
+    let currentQIndex = 0;
+    let score = 0;
+    let gameSpeed = 0.45;
+    let isPlaying = false;
+    let wrongQuestions = [];
+
+    // --- 2. Three.js 3D 場景設定 ---
+    const canvas = document.getElementById('game-canvas');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050510, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // 燈光設定
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0x00ffcc, 0.8);
+    dirLight.position.set(10, 20, 10);
+    scene.add(dirLight);
+
+    // 地面動態網格
+    const gridHelper = new THREE.GridHelper(200, 100, 0x00ffcc, 0x222244);
+    gridHelper.position.y = -1;
+    scene.add(gridHelper);
+
+    // 玩家戰車模型
+    const playerGroup = new THREE.Group();
+    const carMat = new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.2, metalness: 0.8 });
+    const carMesh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 3), carMat);
+    playerGroup.add(carMesh);
+    playerGroup.position.set(0, -0.5, 0);
+    scene.add(playerGroup);
+
+    // 雷射子彈系統
+    const lasers = new THREE.Group();
+    scene.add(lasers);
+
+    function shootLaser() {
+        if (!isPlaying) return;
+        const laserGeo = new THREE.BoxGeometry(0.15, 0.15, 1.5);
+        const laserMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+        const laser = new THREE.Mesh(laserGeo, laserMat);
+        laser.position.set(playerGroup.position.x, -0.3, -1.5);
+        lasers.add(laser);
+    }
+    setInterval(shootLaser, 300); // 每 0.3 秒自動發射一發雷射
+
+    // 車道與問題閘門設定 (-4: 左, 0: 中, 4: 右)
+    const lanes = [-4, 0, 4];
+    let currentLane = 1;
+    let gatesGroup = new THREE.Group();
+    scene.add(gatesGroup);
+
+    // --- 3. 廣東話語音朗讀功能 (TTS) ---
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-HK'; // 設定為廣東話
+            utterance.rate = 1.1;     // 語速微快
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
+    // --- 4. 繪製 3D 選項文字板 ---
+    function createTextTexture(text) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 512;
+        tempCanvas.height = 256;
+        const ctx = tempCanvas.getContext('2d');
+
+        ctx.fillStyle = 'rgba(0, 40, 65, 0.9)';
+        ctx.fillRect(0, 0, 512, 256);
+
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 12;
+        ctx.strokeRect(6, 6, 500, 244);
+
+        ctx.font = 'bold 62px "PingFang HK", "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 256, 128);
+
+        return new THREE.CanvasTexture(tempCanvas);
+    }
+
+    function spawnGates() {
+        while (gatesGroup.children.length > 0) {
+            gatesGroup.remove(gatesGroup.children[0]);
+        }
+
+        // 檢查是否已完成所有題目
+        if (currentQIndex >= questions.length) {
+            endGame();
+            return;
+        }
+
+        const qData = questions[currentQIndex];
+        document.getElementById('question-box').innerHTML = qData.q;
+        document.getElementById('progress').innerText = (currentQIndex + 1) + '/' + questions.length;
+
+        // 隨機打亂三個選項的位置
+        let indices = [0, 1, 2].sort(() => Math.random() - 0.5);
+
+        for (let i = 0; i < 3; i++) {
+            const optIdx = indices[i];
+            const gateGeo = new THREE.BoxGeometry(3.3, 2, 0.2);
+            const gateMat = new THREE.MeshBasicMaterial({
+                map: createTextTexture(qData.options[optIdx]),
+                transparent: true
+            });
+            const gateMesh = new THREE.Mesh(gateGeo, gateMat);
+            gateMesh.position.set(lanes[i], 0.5, -85);
+            gateMesh.userData = {
+                isCorrect: (optIdx === qData.ans),
+                text: qData.options[qData.ans],
+                fullQ: qData.q
+            };
+            gatesGroup.add(gateMesh);
+        }
+        gatesGroup.position.z = 0;
+    }
+
+    // --- 5. 直向與橫向畫面自動適應 ---
+    function updateLayout() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        camera.aspect = w / h;
+
+        if (h > w) {
+            // 直向模式 (Portrait)：拉遠拉高鏡頭以容納三條車道
+            camera.position.set(0, 6.5, 13);
+            camera.lookAt(0, 0, -10);
+        } else {
+            // 橫向模式 (Landscape)：標準低視角衝刺感
+            camera.position.set(0, 3.5, 7);
+            camera.lookAt(0, 0, -10);
+        }
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', updateLayout);
+    updateLayout();
+
+    // --- 6. 跨裝置控制系統 (鍵盤 + 觸控) ---
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            if (currentLane > 0) currentLane--;
+        }
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            if (currentLane < 2) currentLane++;
+        }
+    });
+
+    window.addEventListener('touchstart', (e) => {
+        if (!isPlaying) return;
+        const touchX = e.touches[0].clientX;
+        if (touchX < window.innerWidth / 2) {
+            if (currentLane > 0) currentLane--;
+        } else {
+            if (currentLane < 2) currentLane++;
+        }
+    });
+
+    // --- 7. 遊戲流程控制 (開始與結算) ---
+    function startGame() {
+        currentQIndex = 0;
+        score = 0;
+        gameSpeed = 0.45;
+        wrongQuestions = [];
+        document.getElementById('score').innerText = score;
+        document.getElementById('overlay').style.display = 'none';
+        isPlaying = true;
+        spawnGates();
+    }
+
+    function endGame() {
+        isPlaying = false;
+        const overlay = document.getElementById('overlay');
+        const wrongList = document.getElementById('wrong-list');
+        overlay.style.display = 'flex';
+
+        // 根據分數計算稱號
+        let rank = score >= 1500 ? '【與萬物冥合的車神】' :
+                  (score >= 1000 ? '【箕踞而遨的高手】' : '【恒惴慄的初學者】');
+
+        document.getElementById('end-desc').innerHTML =
+            '恭喜完成全文挑戰！<br>' +
+            "總積分：<b style='color:#ffcc00'>" + score + '</b><br>' +
+            "獲得稱號：<b style='color:#00ffcc'>" + rank + '</b>';
+
+        if (wrongQuestions.length > 0) {
+            wrongList.style.display = 'block';
+            wrongList.innerHTML = '<b style="color:#ff5555">需要重溫的佳句：</b><br>' + wrongQuestions.join('<br>');
+        } else {
+            wrongList.style.display = 'block';
+            wrongList.innerHTML = '<b style="color:#00ffcc">完美！全篇一字不漏全對！</b>';
+        }
+    }
+
+    // --- 8. 遊戲主迴圈 (動畫與碰撞檢測) ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // 戰車平滑移動與轉彎傾斜效果
+        const targetX = lanes[currentLane];
+        playerGroup.position.x += (targetX - playerGroup.position.x) * 0.18;
+        playerGroup.rotation.z = (playerGroup.position.x - targetX) * 0.12;
+
+        if (isPlaying) {
+            // 地板網格滾動
+            gridHelper.position.z += gameSpeed;
+            if (gridHelper.position.z > 2) gridHelper.position.z = 0;
+
+            // 問題閘門前進
+            gatesGroup.position.z += gameSpeed;
+
+            // 雷射子彈飛行
+            for (let i = lasers.children.length - 1; i >= 0; i--) {
+                lasers.children[i].position.z -= 1.5;
+                if (lasers.children[i].position.z < -90) {
+                    lasers.remove(lasers.children[i]);
+                }
+            }
+
+            // 碰撞檢測 (當問題閘門接近戰車時)
+            if (gatesGroup.position.z >= 83 && gatesGroup.position.z <= 86) {
+                const hitGate = gatesGroup.children[currentLane];
+                if (hitGate && !hitGate.userData.checked) {
+                    hitGate.userData.checked = true;
+                    hitGate.visible = false; // 擊破消失特效
+
+                    if (hitGate.userData.isCorrect) {
+                        // 答對：加分、加速、發綠光、朗讀句子
+                        score += 100;
+                        gameSpeed = Math.min(0.85, gameSpeed + 0.02);
+                        carMat.color.setHex(0x00ff00);
+                        speakText(hitGate.userData.text);
+                    } else {
+                        // 答錯：扣分、減速、發紅光、記錄錯題
+                        score = Math.max(0, score - 50);
+                        gameSpeed = Math.max(0.35, gameSpeed - 0.05);
+                        carMat.color.setHex(0xff0000);
+                        const correctSentence = hitGate.userData.fullQ.replace(/＿+/g, hitGate.userData.text);
+                        wrongQuestions.push(correctSentence);
+                    }
+
+                    setTimeout(() => carMat.color.setHex(0xff0055), 300);
+                    document.getElementById('score').innerText = score;
+                }
+            }
+
+            // 生成下一題
+            if (gatesGroup.position.z > 90) {
+                currentQIndex++;
+                spawnGates();
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    animate();
+</script>
+</body>
+</html>
