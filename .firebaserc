@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "revision-games"
+  },
+  "targets": {
+    "revision-games": {
+      "hosting": {
+        "xishan-rush": [
+          "revision-games-xishan-rush"
+        ]
+      }
+    }
+  }
+}
