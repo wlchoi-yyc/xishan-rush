@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極速西山 XISHAN RUSH | 《始得西山宴遊記》3D背誦遊戲</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #030308;
+            font-family: 'PingFang HK', 'Microsoft JhengHei', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        #game-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* 電競級 UI 介面層 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .header {
+            background: linear-gradient(180deg, rgba(3,3,12,0.9) 0%, rgba(3,3,12,0) 100%);
+            padding: 15px 15px 30px 15px;
+            text-align: center;
+            color: white;
+        }
+        /* 頂部進度能量條 */
+        #progress-container {
+            max-width: 750px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            margin: 0 auto 12px auto;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 5%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffcc, #ff00aa);
+            box-shadow: 0 0 10px #00ffcc;
+            transition: width 0.3s ease;
+        }
+        #hud-info {
+            display: flex;
+            justify-content: space-between;
+            max-width: 750px;
+            margin: 0 auto 10px auto;
+            font-size: 1rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #00ffcc;
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
+        }
+        #stage-badge {
+            background: rgba(0, 255, 204, 0.15);
+            border: 1px solid #00ffcc;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        /* 玻璃擬態題目框 */
+        #question-box {
+            background: rgba(10, 20, 35, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1.5px solid rgba(0, 255, 204, 0.6);
+            border-radius: 16px;
+            padding: 15px 20px;
+            max-width: 750px;
+            margin: 0 auto;
+            font-size: 1.35rem;
+            line-height: 1.5;
+            color: #fff;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 255, 204, 0.15);
+            transition: border-color 0.5s, box-shadow 0.5s;
+        }
+        .highlight {
+            color: #ffcc00;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.6);
+            padding: 0 4px;
+        }
+        /* 境界突破提示動畫 */
+        #level-up-toast {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-size: 2rem;
+            font-weight: 900;
+            color: #ffcc00;
+            text-shadow: 0 0 20px #ff00aa, 0 0 40px #ffcc00;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .footer-hint {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.45);
+            padding: 15px;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+        /* 開始與結算畫面遮罩 */
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(15, 25, 45, 0.92) 0%, rgba(3, 3, 10, 0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+            overflow-y: auto;
+        }
+        .title-en {
+            font-size: 1rem;
+            letter-spacing: 6px;
+            color: #ff00aa;
+            font-weight: 800;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px #ff00aa;
+        }
+        .title-zh {
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: #ffffff;
+            margin: 0 0 5px 0;
+            text-shadow: 0 0 20px #00ffcc;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            margin-top: 0;
+            color: #00ffcc;
+            font-size: 1.1rem;
+            font-weight: normal;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #00ffcc 0%, #0099ff 100%);
+            color: #030308;
+            border: none;
+            padding: 16px 45px;
+            font-size: 1.25rem;
+            font-weight: 900;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 25px;
+            box-shadow: 0 0 25px rgba(0, 255, 204, 0.5);
+            pointer-events: auto;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 35px rgba(0, 255, 204, 0.8);
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        #wrong-list {
+            text-align: left;
+            width: 90%;
+            max-width: 600px;
+            max-height: 35vh;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            pointer-events: auto;
+        }
+        @media (orientation: portrait) {
+            #question-box {
+                font-size: 1.1rem;
+                padding: 12px 15px;
+                width: 90%;
+            }
+            .title-zh { font-size: 2.2rem; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="header">
+            <div id="progress-container"><div id="progress-bar"></div></div>
+            <div id="hud-info">
+                <span id="stage-badge">境界：未得西山（恒惴慄）</span>
+                <span>進度: <span id="progress">1/18</span></span>
+                <span>積分: <span id="score">0</span></span>
+            </div>
+            <div id="question-box">準備出發...</div>
+        </div>
+        <div id="level-up-toast">✨ 始得西山・心凝形釋 ✨</div>
+        <div class="footer-hint">點擊螢幕【左 / 右】半邊 或 鍵盤 ◀ ▶ 操控飛舟</div>
+    </div>
+
+    <div id="overlay">
+        <div class="title-en">XISHAN RUSH</div>
+        <h1 class="title-zh">極速西山</h1>
+        <h3 class="subtitle">《始得西山宴遊記》3D 賽博水墨背誦戰機</h3>
+        <p id="end-desc" style="max-width:480px; line-height:1.7; color:#bbb; margin:0;">
+            穿梭永州山水，發射雙管雷射擊破正確的古文詞句！
+            體驗由「恒惴慄」到「與萬物冥合」的極速視覺昇華。
+        </p>
+        <div id="wrong-list" style="display:none;"></div>
+        <button class="btn" onclick="startGame()">啟動飛舟 START</button>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+<script>
+    // --- 1. 《始得西山宴遊記》全篇 18 題 ---
+    const questions = [
+        { q: "自余為僇人，居是州，恒惴慄。其隙也，<span class='highlight'>＿＿＿＿＿</span>，漫漫而遊。", options: ["則施施而行", "則急急而行", "則緩緩而走"], ans: 0 },
+        { q: "日與其徒上高山，<span class='highlight'>＿＿＿</span>，窮迴溪，幽泉怪石，無遠不到。", options: ["入深林", "入幽谷", "入寒山"], ans: 0 },
+        { q: "到則<span class='highlight'>＿＿＿＿</span>，傾壺而醉。醉則更相枕以臥，臥而夢。", options: ["披草而坐", "席地而坐", "依石而坐"], ans: 0 },
+        { q: "意有所極，夢亦同趣。<span class='highlight'>＿＿＿</span>，起而歸。", options: ["覺而起", "醒而起", "驚而起"], ans: 0 },
+        { q: "以為凡是州之山水有異態者，皆我有也，而未始知西山之<span class='highlight'>＿＿</span>。", options: ["怪特", "奇特", "獨特"], ans: 0 },
+        // 第 6 題起進入「始得西山」境界，畫面將自動變色昇華！
+        { q: "今年九月二十八日，因坐法華西亭，望西山，<span class='highlight'>＿＿＿＿</span>。", options: ["始指異之", "始驚異之", "始嘆異之"], ans: 0 },
+        { q: "遂命僕人過湘江，緣染溪，<span class='highlight'>＿＿＿</span>，焚茅茷，窮山之高而止。", options: ["斫榛莽", "伐竹木", "闢荊棘"], ans: 0 },
+        { q: "攀援而登，<span class='highlight'>＿＿＿＿</span>，則凡數州之土壤，皆在衽席之下。", options: ["箕踞而遨", "盤膝而遨", "憑欄而望"], ans: 0 },
+        { q: "其高下之勢，岈然洼然，若垤若穴，<span class='highlight'>＿＿＿＿</span>，攢蹙累積，莫得遯隱。", options: ["尺寸千里", "咫尺千里", "毫釐千里"], ans: 0 },
+        { q: "攢蹙累積，<span class='highlight'>＿＿＿＿</span>。縈青繚白，外與天際，四望如一。", options: ["莫得遯隱", "莫能遯隱", "無所遯形"], ans: 0 },
+        { q: "縈青繚白，<span class='highlight'>＿＿＿＿</span>，四望如一。然後知是山之特立，不與培塿為類。", options: ["外與天際", "上與天齊", "遠接天際"], ans: 0 },
+        { q: "然後知是山之特立，不與<span class='highlight'>＿＿</span>為類。", options: ["培塿", "丘陵", "凡山"], ans: 0 },
+        { q: "悠悠乎與<span class='highlight'>＿＿</span>俱，而莫得其涯。", options: ["顥氣", "浩氣", "靈氣"], ans: 0 },
+        { q: "洋洋乎與造物者遊，而<span class='highlight'>＿＿＿＿＿</span>。", options: ["不知其所窮", "不知其所終", "不知其所蹤"], ans: 0 },
+        { q: "引觴滿酌，<span class='highlight'>＿＿＿＿</span>，不知日之入。", options: ["頹然就醉", "酣然入醉", "欣然就醉"], ans: 0 },
+        { q: "蒼然暮色，自遠而至，至無所見，而<span class='highlight'>＿＿＿＿</span>。", options: ["猶不欲歸", "猶不思歸", "猶不肯歸"], ans: 0 },
+        { q: "<span class='highlight'>＿＿＿＿</span>，與萬物冥合。然後知吾嚮之未始遊，遊於是乎始。", options: ["心凝形釋", "心曠神怡", "神凝形釋"], ans: 0 },
+        { q: "故為之文以志。是歲，<span class='highlight'>＿＿＿＿</span>也。", options: ["元和四年", "元和五年", "永貞元年"], ans: 0 }
+    ];
+
+    let currentQIndex = 0;
+    let score = 0;
+    let gameSpeed = 0.45;
+    let isPlaying = false;
+    let wrongQuestions = [];
+    let shakeIntensity = 0;
+    let clock = new THREE.Clock();
+
+    // --- 2. Three.js 場景與視覺初始化 ---
+    const canvas = document.getElementById('game-canvas');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x030712, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    let baseCamPos = { x: 0, y: 3.5, z: 7 };
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // 燈光系統
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0x00ffcc, 1.2);
+    dirLight.position.set(15, 30, 20);
+    scene.add(dirLight);
+
+    // 地面霓虹網格
+    let gridHelper = new THREE.GridHelper(200, 100, 0x00ffcc, 0x112233);
+    gridHelper.position.y = -1;
+    scene.add(gridHelper);
+
+    // --- 3. 打造流線型 3D 戰機（取代單調方塊） ---
+    const playerGroup = new THREE.Group();
+
+    // 主機身
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, roughness: 0.2, metalness: 0.8 });
+    const bodyMesh = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 6), bodyMat);
+    bodyMesh.rotation.x = -Math.PI / 2;
+    playerGroup.add(bodyMesh);
+
+    // 飛翼
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0x112244, roughness: 0.4, metalness: 0.9, emissive: 0x003344 });
+    const wingMesh = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.1, 1.2), wingMat);
+    wingMesh.position.set(0, -0.1, 0.4);
+    playerGroup.add(wingMesh);
+
+    // 科技座艙罩
+    const cockpitMat = new THREE.MeshBasicMaterial({ color: 0xffcc00, wireframe: true });
+    const cockpitMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 1.2), cockpitMat);
+    cockpitMesh.position.set(0, 0.25, 0.1);
+    playerGroup.add(cockpitMesh);
+
+    // 尾部雙噴射推進器 (發光體)
+    const thrusterMat = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+    const thrusterL = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.05, 0.6, 8), thrusterMat);
+    thrusterL.rotation.x = Math.PI / 2;
+    thrusterL.position.set(-0.4, -0.1, 1.6);
+    const thrusterR = thrusterL.clone();
+    thrusterR.position.x = 0.4;
+    playerGroup.add(thrusterL, thrusterR);
+
+    playerGroup.position.set(0, -0.4, 0);
+    scene.add(playerGroup);
+
+    // --- 4. 建造「岈然洼然」3D 遠山與浩瀚星空 ---
+    const mountainsGroup = new THREE.Group();
+    const mtMat = new THREE.MeshStandardMaterial({
+        color: 0x071828,
+        roughness: 0.7,
+        metalness: 0.3,
+        flatShading: true,
+        emissive: 0x001122
+    });
+
+    for (let i = 0; i < 36; i++) {
+        const radius = 5 + Math.random() * 8;
+        const height = 10 + Math.random() * 25;
+        const mtGeo = new THREE.ConeGeometry(radius, height, 4); // 四角錐體呈現水墨山石稜角
+        const mtMesh = new THREE.Mesh(mtGeo, mtMat);
+
+        // 分佈在賽道左右兩側外圍
+        const side = i % 2 === 0 ? 1 : -1;
+        mtMesh.position.x = side * (14 + Math.random() * 22);
+        mtMesh.position.y = height / 2 - 2;
+        mtMesh.position.z = -Math.random() * 180;
+        mtMesh.rotation.y = Math.random() * Math.PI;
+        mountainsGroup.add(mtMesh);
+    }
+    scene.add(mountainsGroup);
+
+    // 星空粒子（「悠悠乎與顥氣俱」）
+    const starGeo = new THREE.BufferGeometry();
+    const starCount = 500;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+        starPos[i] = (Math.random() - 0.5) * 160;
+        starPos[i + 1] = 5 + Math.random() * 60;
+        starPos[i + 2] = -Math.random() * 180;
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, transparent: true, opacity: 0.8 });
+    const starField = new THREE.Points(starGeo, starMat);
+    scene.add(starField);
+
+    // --- 5. 3D 爆炸粒子與雙管雷射系統 ---
+    const particlesGroup = new THREE.Group();
+    scene.add(particlesGroup);
+
+    function createExplosion(x, y, z, colorHex) {
+        for (let i = 0; i < 28; i++) {
+            const pGeo = new THREE.OctahedronGeometry(0.25, 0);
+            const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
+            const p = new THREE.Mesh(pGeo, pMat);
+            p.position.set(x, y, z);
+            p.userData = {
+                vx: (Math.random() - 0.5) * 0.9,
+                vy: (Math.random() - 0.5) * 0.9 + 0.2,
+                vz: (Math.random() - 0.5) * 0.9,
+                life: 1.0
+            };
+            particlesGroup.add(p);
+        }
+    }
+
+    const lasers = new THREE.Group();
+    scene.add(lasers);
+
+    function shootLaser() {
+        if (!isPlaying) return;
+        const laserGeo = new THREE.BoxGeometry(0.1, 0.1, 1.8);
+        const laserMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+        // 左右雙翼齊發
+        const laserL = new THREE.Mesh(laserGeo, laserMat);
+        laserL.position.set(playerGroup.position.x - 0.9, -0.4, -1.0);
+        const laserR = new THREE.Mesh(laserGeo, laserMat);
+        laserR.position.set(playerGroup.position.x + 0.9, -0.4, -1.0);
+        lasers.add(laserL, laserR);
+    }
+    setInterval(shootLaser, 280);
+
+    // --- 6. 廣東話語音與文字標靶生成 ---
+    const lanes = [-4, 0, 4];
+    let currentLane = 1;
+    let gatesGroup = new THREE.Group();
+    scene.add(gatesGroup);
+
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'zh-HK';
+            u.rate = 1.1;
+            window.speechSynthesis.speak(u);
+        }
+    }
+
+    function createTextTexture(text, isPhase2) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 512;
+        tempCanvas.height = 256;
+        const ctx = tempCanvas.getContext('2d');
+
+        // 漸層科技感背景
+        const grad = ctx.createLinearGradient(0, 0, 0, 256);
+        if (isPhase2) {
+            grad.addColorStop(0, 'rgba(60, 10, 50, 0.92)');
+            grad.addColorStop(1, 'rgba(20, 5, 35, 0.92)');
+        } else {
+            grad.addColorStop(0, 'rgba(5, 45, 70, 0.92)');
+            grad.addColorStop(1, 'rgba(5, 15, 35, 0.92)');
+        }
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 512, 256);
+
+        // 霓虹雙邊框與四角裝飾
+        const borderColor = isPhase2 ? '#ffcc00' : '#00ffcc';
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 10;
+        ctx.strokeRect(8, 8, 496, 240);
+
+        // 發光文字
+        ctx.shadowColor = borderColor;
+        ctx.shadowBlur = 15;
+        ctx.font = 'bold 62px "PingFang HK", "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 256, 128);
+
+        return new THREE.CanvasTexture(tempCanvas);
+    }
+
+    // 切換「未得西山」與「始得西山」的視覺主題
+    function setAtmosphere(phase) {
+        const badge = document.getElementById('stage-badge');
+        const qBox = document.getElementById('question-box');
+        if (phase === 1) {
+            scene.fog.color.setHex(0x030712);
+            dirLight.color.setHex(0x00ffcc);
+            mtMat.color.setHex(0x071828);
+            mtMat.emissive.setHex(0x001122);
+            badge.innerText = "境界：未得西山（恒惴慄）";
+            badge.style.borderColor = "#00ffcc";
+            badge.style.color = "#00ffcc";
+            qBox.style.borderColor = "rgba(0, 255, 204, 0.6)";
+        } else {
+            // 始得西山：切換為紫金晚霞與星海意境（「蒼然暮色」、「與萬物冥合」）
+            scene.fog.color.setHex(0x180522);
+            dirLight.color.setHex(0xffaa00);
+            mtMat.color.setHex(0x2a0835);
+            mtMat.emissive.setHex(0x1a0022);
+            badge.innerText = "境界：始得西山（與萬物冥合）";
+            badge.style.borderColor = "#ffcc00";
+            badge.style.color = "#ffcc00";
+            qBox.style.borderColor = "rgba(255, 204, 0, 0.8)";
+
+            // 彈出境界突破提示
+            const toast = document.getElementById('level-up-toast');
+            toast.style.opacity = '1';
+            toast.style.transform = 'translate(-50%, -50%) scale(1)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translate(-50%, -50%) scale(0.5)';
+            }, 2500);
+        }
+    }
+
+    function spawnGates() {
+        while (gatesGroup.children.length > 0) {
+            gatesGroup.remove(gatesGroup.children[0]);
+        }
+
+        if (currentQIndex >= questions.length) {
+            endGame();
+            return;
+        }
+
+        // 第 6 題（index 為 5）觸發「始得西山」視覺大轉換
+        if (currentQIndex === 5) {
+            setAtmosphere(2);
+        }
+
+        const isPhase2 = currentQIndex >= 5;
+        const qData = questions[currentQIndex];
+        document.getElementById('question-box').innerHTML = qData.q;
+        document.getElementById('progress').innerText = (currentQIndex + 1) + '/' + questions.length;
+        document.getElementById('progress-bar').style.width = ((currentQIndex + 1) / questions.length * 100) + '%';
+
+        let indices = [0, 1, 2].sort(() => Math.random() - 0.5);
+
+        for (let i = 0; i < 3; i++) {
+            const optIdx = indices[i];
+            const gateGeo = new THREE.BoxGeometry(3.3, 2, 0.25);
+            const gateMat = new THREE.MeshBasicMaterial({
+                map: createTextTexture(qData.options[optIdx], isPhase2),
+                transparent: true
+            });
+            const gateMesh = new THREE.Mesh(gateGeo, gateMat);
+            gateMesh.position.set(lanes[i], 0.5, -90);
+            gateMesh.userData = {
+                isCorrect: (optIdx === qData.ans),
+                text: qData.options[qData.ans],
+                fullQ: qData.q
+            };
+            gatesGroup.add(gateMesh);
+        }
+        gatesGroup.position.z = 0;
+    }
+
+    // --- 7. 跨平台直向／橫向自動調整 ---
+    function updateLayout() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        camera.aspect = w / h;
+
+        if (h > w) {
+            baseCamPos = { x: 0, y: 6.5, z: 13 };
+        } else {
+            baseCamPos = { x: 0, y: 3.5, z: 7 };
+        }
+        camera.position.set(baseCamPos.x, baseCamPos.y, baseCamPos.z);
+        camera.lookAt(0, 0, -10);
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', updateLayout);
+    updateLayout();
+
+    // --- 8. 鍵盤與觸控操作 ---
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            if (currentLane > 0) currentLane--;
+        }
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            if (currentLane < 2) currentLane++;
+        }
+    });
+
+    window.addEventListener('touchstart', (e) => {
+        if (!isPlaying) return;
+        const touchX = e.touches[0].clientX;
+        if (touchX < window.innerWidth / 2) {
+            if (currentLane > 0) currentLane--;
+        } else {
+            if (currentLane < 2) currentLane++;
+        }
+    });
+
+    // --- 9. 遊戲開始與結算 ---
+    function startGame() {
+        currentQIndex = 0;
+        score = 0;
+        gameSpeed = 0.45;
+        wrongQuestions = [];
+        setAtmosphere(1);
+        document.getElementById('score').innerText = score;
+        document.getElementById('overlay').style.display = 'none';
+        isPlaying = true;
+        spawnGates();
+    }
+
+    function endGame() {
+        isPlaying = false;
+        const overlay = document.getElementById('overlay');
+        const wrongList = document.getElementById('wrong-list');
+        overlay.style.display = 'flex';
+
+        let rank = score >= 1500 ? '【與萬物冥合的車神】' :
+                  (score >= 1000 ? '【箕踞而遨的高手】' : '【恒惴慄的初學者】');
+
+        document.getElementById('end-desc').innerHTML =
+            '恭喜完成《始得西山宴遊記》全篇挑戰！<br>' +
+            "總積分：<b style='color:#ffcc00; font-size:1.3rem;'>" + score + '</b><br>' +
+            "獲得稱號：<b style='color:#00ffcc; font-size:1.2rem;'>" + rank + '</b>';
+
+        if (wrongQuestions.length > 0) {
+            wrongList.style.display = 'block';
+            wrongList.innerHTML = '<b style="color:#ff5555">📌 需要重溫的佳句：</b><br>' + wrongQuestions.join('<br>');
+        } else {
+            wrongList.style.display = 'block';
+            wrongList.innerHTML = '<b style="color:#00ffcc">🏆 完美無瑕！全篇一字不漏全對！</b>';
+        }
+    }
+
+    // --- 10. 遊戲主迴圈 (3D 動態、山脈捲動、粒子爆炸) ---
+    function animate() {
+        requestAnimationFrame(animate);
+        const elapsedTime = clock.getElapsedTime();
+
+        // 戰機平滑移動、轉彎側傾與懸浮呼吸感
+        const targetX = lanes[currentLane];
+        playerGroup.position.x += (targetX - playerGroup.position.x) * 0.18;
+        playerGroup.position.y = -0.4 + Math.sin(elapsedTime * 5) * 0.08;
+        playerGroup.rotation.z = (playerGroup.position.x - targetX) * 0.18;
+
+        // 鏡頭震動衰減 (撞錯標靶時觸發)
+        if (shakeIntensity > 0) {
+            camera.position.x = baseCamPos.x + (Math.random() - 0.5) * shakeIntensity;
+            camera.position.y = baseCamPos.y + (Math.random() - 0.5) * shakeIntensity;
+            shakeIntensity *= 0.88;
+            if (shakeIntensity < 0.02) {
+                shakeIntensity = 0;
+                camera.position.set(baseCamPos.x, baseCamPos.y, baseCamPos.z);
+            }
+        }
+
+        // 更新 3D 爆炸粒子
+        for (let i = particlesGroup.children.length - 1; i >= 0; i--) {
+            const p = particlesGroup.children[i];
+            p.position.x += p.userData.vx;
+            p.position.y += p.userData.vy;
+            p.position.z += p.userData.vz;
+            p.rotation.x += 0.1;
+            p.rotation.y += 0.1;
+            p.userData.life -= 0.03;
+            p.scale.setScalar(Math.max(0, p.userData.life));
+            if (p.userData.life <= 0) {
+                particlesGroup.remove(p);
+            }
+        }
+
+        if (isPlaying) {
+            // 1. 地面網格前進
+            gridHelper.position.z += gameSpeed;
+            if (gridHelper.position.z > 2) gridHelper.position.z = 0;
+
+            // 2. 兩側遠山無限循環移動
+            mountainsGroup.children.forEach(mt => {
+                mt.position.z += gameSpeed;
+                if (mt.position.z > 15) {
+                    mt.position.z = -165;
+                }
+            });
+
+            // 3. 題目閘門前進
+            gatesGroup.position.z += gameSpeed;
+
+            // 4. 雙管雷射飛行
+            for (let i = lasers.children.length - 1; i >= 0; i--) {
+                lasers.children[i].position.z -= 1.8;
+                if (lasers.children[i].position.z < -95) {
+                    lasers.remove(lasers.children[i]);
+                }
+            }
+
+            // 5. 碰撞與擊破檢測 (閘門初始在 -90，當 gatesGroup.position.z 接近 90 時觸發)
+            if (gatesGroup.position.z >= 88 && gatesGroup.position.z <= 91) {
+                const hitGate = gatesGroup.children[currentLane];
+                if (hitGate && !hitGate.userData.checked) {
+                    hitGate.userData.checked = true;
+                    hitGate.visible = false;
+
+                    if (hitGate.userData.isCorrect) {
+                        // 答對：粒子爆炸、加分、加速、語音朗讀
+                        score += 100;
+                        gameSpeed = Math.min(0.85, gameSpeed + 0.02);
+                        bodyMat.color.setHex(0x00ff66);
+                        createExplosion(lanes[currentLane], 0.5, 0, 0x00ffcc);
+                        speakText(hitGate.userData.text);
+                    } else {
+                        // 答錯：紅色爆炸、鏡頭劇烈震動、減速、記錄錯題
+                        score = Math.max(0, score - 50);
+                        gameSpeed = Math.max(0.35, gameSpeed - 0.05);
+                        bodyMat.color.setHex(0xff0033);
+                        shakeIntensity = 0.7;
+                        createExplosion(lanes[currentLane], 0.5, 0, 0xff0044);
+                        const correctSentence = hitGate.userData.fullQ.replace(/＿+/g, hitGate.userData.text);
+                        wrongQuestions.push(correctSentence);
+                    }
+
+                    setTimeout(() => bodyMat.color.setHex(0x00e5ff), 350);
+                    document.getElementById('score').innerText = score;
+                }
+            }
+
+            // 6. 生成下一題
+            if (gatesGroup.position.z > 95) {
+                currentQIndex++;
+                spawnGates();
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    animate();
+</script>
+</body>
+</html>
